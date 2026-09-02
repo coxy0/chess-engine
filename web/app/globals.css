@@ -1,4 +1,41 @@
 @import "tailwindcss";
+@import "@lichess-org/chessground/assets/chessground.base.css";
+@import "@lichess-org/chessground/assets/chessground.brown.css";
+@import "@lichess-org/chessground/assets/chessground.cburnett.css";
+
+cg-board {
+  background-color: #f0d9b5;
+  background-image: repeating-conic-gradient(#b58863 0% 25%, #f0d9b5 0% 50%);
+  background-size: 25% 25%;
+}
+
+.cg-wrap coords.files {
+  text-transform: none;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.cg-wrap coords.files coord {
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-end;
+  padding: 0 0 4px 4px;
+}
+
+.cg-wrap coords.ranks {
+  left: auto;
+  right: 0;
+  top: 0;
+}
+
+.cg-wrap coords.ranks coord {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  padding: 4px 4px 0 0;
+  transform: none;
+}
 
 :root {
   --background: #ffffff;
