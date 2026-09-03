@@ -53,6 +53,7 @@ export default function Board() {
   const containerRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<Api | null>(null);
   const moveCountRef = useRef(0);
+  const moveListRef = useRef<HTMLDivElement>(null);
   const [game] = useState(() => new Chess());
   const [moveHistory, setMoveHistory] = useState<MoveRecord[]>([]);
   const [viewIndex, setViewIndex] = useState(0);
@@ -144,6 +145,23 @@ export default function Board() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [moveHistory.length]);
 
+  useEffect(() => {
+    const container = moveListRef.current;
+    if (!container) return;
+
+    const lastRowStartPly = Math.ceil(moveHistory.length / 2) * 2 - 1;
+
+    if (viewIndex <= 2) {
+      container.scrollTo({ top: 0 });
+    } else if (viewIndex >= lastRowStartPly) {
+      container.scrollTo({ top: container.scrollHeight });
+    } else {
+      container
+        .querySelector<HTMLElement>(`[data-ply="${viewIndex}"]`)
+        ?.scrollIntoView({ block: "nearest" });
+    }
+  }, [viewIndex, moveHistory.length]);
+
   const pairs = movePairs(moveHistory.map((m) => m.san));
   const isLive = viewIndex === moveHistory.length;
 
@@ -160,7 +178,10 @@ export default function Board() {
         className="aspect-square w-full max-w-160 shrink-0"
       />
       <div className="flex h-72 w-full max-w-160 flex-col rounded-md border border-black/10 bg-black/3 sm:h-160 sm:w-64 sm:max-w-none dark:border-white/10 dark:bg-white/3">
-        <div className="flex-1 overflow-y-auto px-2 py-2">
+        <div
+          ref={moveListRef}
+          className="move-list flex-1 overflow-y-auto px-2 py-2"
+        >
           {pairs.length === 0 ? (
             <div className="px-2 py-2 text-sm text-black/40 dark:text-white/40">
               No moves yet
@@ -180,15 +201,17 @@ export default function Board() {
                   <button
                     type="button"
                     onClick={() => setViewIndex(whitePly)}
-                    className={`w-full cursor-pointer text-left ${moveClass(whitePly)}`}
+                    data-ply={whitePly}
+                    className={`w-full cursor-pointer text-left outline-none ${moveClass(whitePly)}`}
                   >
                     {pair.white}
                   </button>
                   <button
                     type="button"
                     onClick={() => pair.black && setViewIndex(blackPly)}
+                    data-ply={blackPly}
                     disabled={!pair.black}
-                    className={`w-full cursor-pointer text-left ${pair.black ? moveClass(blackPly) : ""}`}
+                    className={`w-full cursor-pointer text-left outline-none ${pair.black ? moveClass(blackPly) : ""}`}
                   >
                     {pair.black ?? ""}
                   </button>
