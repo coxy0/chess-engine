@@ -155,7 +155,7 @@ export default function Board() {
         ref={containerRef}
         className="aspect-square w-full max-w-160 shrink-0"
       />
-      <div className="flex h-72 w-full max-w-160 flex-col rounded-md border border-black/10 bg-black/3 sm:h-160 sm:w-64 sm:max-w-none dark:border-white/10 dark:bg-white/3">
+      <div className="flex h-72 w-full max-w-160 flex-col rounded-md border border-black/10 bg-black/3 sm:h-160 sm:w-80 sm:max-w-none dark:border-white/10 dark:bg-white/3">
         <MoveList
           pairs={pairs}
           moveCount={moveHistory.length}
