@@ -41,6 +41,39 @@ function playRandomMove(game: Chess) {
   return move;
 }
 
+function ChevronIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M14 6l-6 6 6 6" />
+    </svg>
+  );
+}
+
+function SkipIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M18 6l-8 6 8 6" />
+      <path d="M6 6v12" />
+    </svg>
+  );
+}
+
 function movePairs(sans: string[]) {
   const pairs: { n: number; white: string; black?: string }[] = [];
   for (let i = 0; i < sans.length; i += 2) {
@@ -225,17 +258,19 @@ export default function Board() {
             type="button"
             onClick={() => setViewIndex(0)}
             disabled={viewIndex === 0}
-            className="flex-1 rounded-sm py-1 text-sm text-black/60 hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent dark:text-white/60 dark:hover:bg-white/5"
+            aria-label="First move"
+            className="flex flex-1 items-center justify-center rounded-sm py-1.5 text-black/60 hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent dark:text-white/60 dark:hover:bg-white/5"
           >
-            |&lt;
+            <SkipIcon className="h-4 w-4" />
           </button>
           <button
             type="button"
             onClick={() => setViewIndex((v) => Math.max(0, v - 1))}
             disabled={viewIndex === 0}
-            className="flex-1 rounded-sm py-1 text-sm text-black/60 hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent dark:text-white/60 dark:hover:bg-white/5"
+            aria-label="Previous move"
+            className="flex flex-1 items-center justify-center rounded-sm py-1.5 text-black/60 hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent dark:text-white/60 dark:hover:bg-white/5"
           >
-            &lt;
+            <ChevronIcon className="h-4 w-4" />
           </button>
           <button
             type="button"
@@ -243,17 +278,19 @@ export default function Board() {
               setViewIndex((v) => Math.min(moveHistory.length, v + 1))
             }
             disabled={isLive}
-            className="flex-1 rounded-sm py-1 text-sm text-black/60 hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent dark:text-white/60 dark:hover:bg-white/5"
+            aria-label="Next move"
+            className="flex flex-1 items-center justify-center rounded-sm py-1.5 text-black/60 hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent dark:text-white/60 dark:hover:bg-white/5"
           >
-            &gt;
+            <ChevronIcon className="h-4 w-4 rotate-180" />
           </button>
           <button
             type="button"
             onClick={() => setViewIndex(moveHistory.length)}
             disabled={isLive}
-            className="flex-1 rounded-sm py-1 text-sm text-black/60 hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent dark:text-white/60 dark:hover:bg-white/5"
+            aria-label="Last move"
+            className="flex flex-1 items-center justify-center rounded-sm py-1.5 text-black/60 hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent dark:text-white/60 dark:hover:bg-white/5"
           >
-            &gt;|
+            <SkipIcon className="h-4 w-4 rotate-180" />
           </button>
         </div>
       </div>
