@@ -167,8 +167,8 @@ export default function Board() {
 
   function moveClass(ply: number) {
     return ply === viewIndex
-      ? "rounded-sm bg-black/10 px-1 -mx-1 dark:bg-white/10"
-      : "rounded-sm px-1 -mx-1 hover:bg-black/5 dark:hover:bg-white/5";
+      ? "bg-black/10 dark:bg-white/10"
+      : "hover:bg-black/5 dark:hover:bg-white/5";
   }
 
   return (
@@ -193,16 +193,16 @@ export default function Board() {
               return (
                 <div
                   key={pair.n}
-                  className="grid grid-cols-[1.5rem_1fr_1fr] gap-2 px-2 py-1 font-mono text-sm"
+                  className="grid grid-cols-[1.5rem_1fr_1fr] font-mono text-sm"
                 >
-                  <span className="text-black/40 dark:text-white/40">
+                  <span className="flex items-center py-1 text-black/40 dark:text-white/40">
                     {pair.n}.
                   </span>
                   <button
                     type="button"
                     onClick={() => setViewIndex(whitePly)}
                     data-ply={whitePly}
-                    className={`w-full cursor-pointer text-left outline-none ${moveClass(whitePly)}`}
+                    className={`w-full cursor-pointer px-2 py-1 text-left outline-none ${moveClass(whitePly)}`}
                   >
                     {pair.white}
                   </button>
@@ -211,7 +211,7 @@ export default function Board() {
                     onClick={() => pair.black && setViewIndex(blackPly)}
                     data-ply={blackPly}
                     disabled={!pair.black}
-                    className={`w-full cursor-pointer text-left outline-none ${pair.black ? moveClass(blackPly) : ""}`}
+                    className={`w-full cursor-pointer px-2 py-1 text-left outline-none ${pair.black ? moveClass(blackPly) : ""}`}
                   >
                     {pair.black ?? ""}
                   </button>
