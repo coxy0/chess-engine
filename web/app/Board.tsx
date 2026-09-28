@@ -80,7 +80,6 @@ const Board = () => {
     useState<PendingPromotion | null>(null);
   const [boardEl, setBoardEl] = useState<HTMLDivElement | null>(null);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
-  const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setContainer = (el: HTMLDivElement | null) => {
     containerRef.current = el;
@@ -90,7 +89,6 @@ const Board = () => {
   const recordMove = (move: Move) => {
     const fen = game.fen();
     moveCountRef.current += 1;
-    if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
     setConfirmingEnd(false);
     setMoveHistory((prev) => [
       ...prev,
@@ -134,27 +132,22 @@ const Board = () => {
     });
   };
 
-  const handleEndOrRestartClick = () => {
-    if (game.isCheckmate()) {
-      restart();
-      return;
-    }
-
-    if (confirmingEnd) {
-      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
-      setConfirmingEnd(false);
-      restart();
-      return;
-    }
-
+  const startResign = () => {
     setConfirmingEnd(true);
-    confirmTimeoutRef.current = setTimeout(() => setConfirmingEnd(false), 3000);
+  };
+
+  const confirmResign = () => {
+    setConfirmingEnd(false);
+    restart();
+  };
+
+  const cancelResign = () => {
+    setConfirmingEnd(false);
   };
 
   const restart = () => {
     game.reset();
     moveCountRef.current = 0;
-    if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
     setConfirmingEnd(false);
     setPendingPromotion(null);
     setMoveHistory([]);
@@ -257,12 +250,6 @@ const Board = () => {
   }, [pendingPromotion]);
 
   useEffect(() => {
-    return () => {
-      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!pendingPromotion) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -313,23 +300,70 @@ const Board = () => {
           viewIndex={viewIndex}
           onSelectPly={setViewIndex}
         />
-        {showEndButton && (
-          <button
-            type="button"
-            onClick={handleEndOrRestartClick}
-            className={`cursor-pointer border-t border-black/10 py-2 text-sm font-medium hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5 ${
-              confirmingEnd
-                ? "text-red-600 dark:text-red-400"
-                : "text-black/70 dark:text-white/70"
-            }`}
-          >
-            {isCheckmate
-              ? "Restart"
-              : confirmingEnd
-                ? "Are you sure?"
-                : "Resign"}
-          </button>
-        )}
+        {showEndButton &&
+          (isCheckmate ? (
+            <button
+              type="button"
+              onClick={restart}
+              className="cursor-pointer border-t border-black/10 py-2 text-sm font-medium text-black/70 hover:bg-black/5 dark:border-white/10 dark:text-white/70 dark:hover:bg-white/5"
+            >
+              Restart
+            </button>
+          ) : confirmingEnd ? (
+            <div className="grid grid-cols-4 items-center gap-1 border-t border-black/10 px-8 py-2 dark:border-white/10">
+              <span className="col-span-2 flex items-center pl-[calc(25%-9px)] text-sm font-medium text-red-600 dark:text-red-400">
+                Are you sure?
+              </span>
+              <button
+                type="button"
+                aria-label="Confirm resign"
+                title="Confirm resign"
+                onClick={confirmResign}
+                className="mr-[calc(9.5px-37.5%)] flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center justify-self-end rounded-sm text-green-600 hover:bg-black/10 dark:text-green-400 dark:hover:bg-white/10"
+              >
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                aria-label="Cancel resign"
+                title="Cancel resign"
+                onClick={cancelResign}
+                className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center justify-self-center rounded-sm text-red-600 hover:bg-black/10 dark:text-red-400 dark:hover:bg-white/10"
+              >
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={startResign}
+              className="cursor-pointer border-t border-black/10 py-2 text-sm font-medium text-black/70 hover:bg-black/5 dark:border-white/10 dark:text-white/70 dark:hover:bg-white/5"
+            >
+              Resign
+            </button>
+          ))}
         <TransportControls
           viewIndex={viewIndex}
           moveCount={moveHistory.length}
