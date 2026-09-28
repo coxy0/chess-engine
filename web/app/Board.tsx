@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Chess, type Move, type Square } from "chess.js";
 import { Chessground } from "@lichess-org/chessground";
 import type { Api } from "@lichess-org/chessground/api";
@@ -11,13 +11,19 @@ import PromotionPicker, {
   type PendingPromotion,
   type PromotionPiece,
 } from "./PromotionPicker";
-import { playMoveSound } from "./sounds";
+import { playMoveSound, type MoveSoundKind } from "./sounds";
 
 const START_FEN = new Chess().fen();
 const PLAYER_COLOR: "white" | "black" = "white";
 const MOVES_BEFORE_END_BUTTON = PLAYER_COLOR === "white" ? 1 : 2;
 
-type MoveRecord = { fen: string; san: string; from: Key; to: Key };
+type MoveRecord = {
+  fen: string;
+  san: string;
+  from: Key;
+  to: Key;
+  sound: MoveSoundKind;
+};
 export type MovePair = { n: number; white: string; black?: string };
 
 const toDests = (chess: Chess) => {
@@ -89,15 +95,16 @@ const Board = () => {
 
   const recordMove = (move: Move) => {
     const fen = game.fen();
+    const sound = soundForMove(move, game);
     moveCountRef.current += 1;
     if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
     setConfirmingEnd(false);
     setMoveHistory((prev) => [
       ...prev,
-      { fen, san: move.san, from: move.from as Key, to: move.to as Key },
+      { fen, san: move.san, from: move.from as Key, to: move.to as Key, sound },
     ]);
     setViewIndex(moveCountRef.current);
-    playMoveSound(soundForMove(move, game));
+    playMoveSound(sound);
   };
 
   const maybePlayEngineMove = () => {
@@ -150,6 +157,17 @@ const Board = () => {
     setConfirmingEnd(true);
     confirmTimeoutRef.current = setTimeout(() => setConfirmingEnd(false), 3000);
   };
+
+  const stepView = useCallback(
+    (nextIndex: number) => {
+      if (nextIndex !== viewIndex) {
+        const passedMove = moveHistory[Math.min(viewIndex, nextIndex)];
+        playMoveSound(passedMove ? passedMove.sound : "move");
+      }
+      setViewIndex(nextIndex);
+    },
+    [viewIndex, moveHistory],
+  );
 
   const restart = () => {
     game.reset();
@@ -234,6 +252,7 @@ const Board = () => {
     const record = viewIndex > 0 ? moveHistory[viewIndex - 1] : undefined;
     const fen = record ? record.fen : START_FEN;
     const position = new Chess(fen);
+    const canPlay = isLive && !position.isGameOver();
 
     api.set({
       fen,
@@ -241,12 +260,13 @@ const Board = () => {
       turnColor: position.turn() === "w" ? "white" : "black",
       check: checkedColor(position),
       viewOnly: !isLive,
-      movable: isLive
+      movable: canPlay
         ? { free: false, color: "white", dests: toDests(game) }
         : { free: false, dests: new Map() },
+      premovable: { enabled: canPlay },
     });
 
-    if (isLive && position.turn() === "w") api.playPremove();
+    if (canPlay && position.turn() === "w") api.playPremove();
   }, [viewIndex, moveHistory, game]);
 
   useEffect(() => {
@@ -276,15 +296,15 @@ const Board = () => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") {
         e.preventDefault();
-        setViewIndex((v) => Math.max(0, v - 1));
+        stepView(Math.max(0, viewIndex - 1));
       } else if (e.key === "ArrowRight") {
         e.preventDefault();
-        setViewIndex((v) => Math.min(moveHistory.length, v + 1));
+        stepView(Math.min(moveHistory.length, viewIndex + 1));
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [moveHistory.length]);
+  }, [viewIndex, moveHistory.length, stepView]);
 
   const pairs = movePairs(moveHistory.map((m) => m.san));
   const isCheckmate = game.isCheckmate();
@@ -334,6 +354,7 @@ const Board = () => {
           viewIndex={viewIndex}
           moveCount={moveHistory.length}
           onChange={setViewIndex}
+          onStep={stepView}
         />
       </div>
     </div>
