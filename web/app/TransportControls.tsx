@@ -61,10 +61,12 @@ export default function TransportControls({
   viewIndex,
   moveCount,
   onChange,
+  onStep,
 }: {
   viewIndex: number;
   moveCount: number;
   onChange: (viewIndex: number) => void;
+  onStep: (viewIndex: number) => void;
 }) {
   const isLive = viewIndex === moveCount;
 
@@ -77,13 +79,13 @@ export default function TransportControls({
         icon={<SkipIcon className="h-4 w-4" />}
       />
       <TransportButton
-        onClick={() => onChange(Math.max(0, viewIndex - 1))}
+        onClick={() => onStep(Math.max(0, viewIndex - 1))}
         disabled={viewIndex === 0}
         label="Previous move"
         icon={<ChevronIcon className="h-4 w-4" />}
       />
       <TransportButton
-        onClick={() => onChange(Math.min(moveCount, viewIndex + 1))}
+        onClick={() => onStep(Math.min(moveCount, viewIndex + 1))}
         disabled={isLive}
         label="Next move"
         icon={<ChevronIcon className="h-4 w-4 rotate-180" />}
