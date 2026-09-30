@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { MovePair } from "./Board";
+import type { GameResult, MovePair } from "./types";
 
 function moveClass(ply: number, viewIndex: number) {
   return ply === viewIndex
@@ -37,11 +37,13 @@ export default function MoveList({
   pairs,
   moveCount,
   viewIndex,
+  result,
   onSelectPly,
 }: {
   pairs: MovePair[];
   moveCount: number;
   viewIndex: number;
+  result: GameResult | null;
   onSelectPly: (ply: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -61,7 +63,7 @@ export default function MoveList({
         .querySelector<HTMLElement>(`[data-ply="${viewIndex}"]`)
         ?.scrollIntoView({ block: "nearest" });
     }
-  }, [viewIndex, moveCount]);
+  }, [viewIndex, moveCount, result]);
 
   return (
     <div
@@ -99,6 +101,14 @@ export default function MoveList({
             </div>
           );
         })
+      )}
+      {result && (
+        <div className="mt-2 flex flex-col items-center py-1 font-mono text-sm">
+          <span className="font-semibold">{result.token}</span>
+          <span className="text-black/50 dark:text-white/50">
+            {result.reason}
+          </span>
+        </div>
       )}
     </div>
   );
