@@ -11,74 +11,32 @@ import PromotionPicker, {
   type PendingPromotion,
   type PromotionPiece,
 } from "./PromotionPicker";
-import { playMoveSound, type MoveSoundKind } from "./sounds";
+import { playMoveSound } from "./sounds";
+import {
+  START_FEN,
+  checkedColor,
+  drawKingShapes,
+  gameResult,
+  movePairs,
+  soundForMove,
+  toDests,
+} from "./lib/chess";
+import { randomEngineMove } from "./lib/engine-player";
+import type { GetEngineMove, MoveRecord } from "./types";
 
-const START_FEN = new Chess().fen();
 const PLAYER_COLOR: "white" | "black" = "white";
 const MOVES_BEFORE_END_BUTTON = PLAYER_COLOR === "white" ? 1 : 2;
+const ENGINE_MOVE_DELAY_MS = 300;
 
-type MoveRecord = {
-  fen: string;
-  san: string;
-  from: Key;
-  to: Key;
-  sound: MoveSoundKind;
-};
-export type MovePair = { n: number; white: string; black?: string };
-
-const toDests = (chess: Chess) => {
-  const dests = new Map<Key, Key[]>();
-  for (const square of chess.board().flat()) {
-    if (!square) continue;
-
-    const moves = chess.moves({ square: square.square, verbose: true });
-    if (moves.length) {
-      dests.set(
-        square.square,
-        moves.map((move) => move.to),
-      );
-    }
-  }
-
-  return dests;
-};
-
-const checkedColor = (chess: Chess) => {
-  if (!chess.inCheck()) return false;
-  return chess.turn() === "w" ? "white" : "black";
-};
-
-const soundForMove = (move: Move, gameAfterMove: Chess) => {
-  if (gameAfterMove.isCheckmate()) return "checkmate" as const;
-  if (move.promotion) return "promote" as const;
-  if (move.isKingsideCastle() || move.isQueensideCastle())
-    return "castle" as const;
-  if (move.isCapture()) return "capture" as const;
-  if (gameAfterMove.inCheck()) return "check" as const;
-  return "move" as const;
-};
-
-const playRandomMove = (game: Chess) => {
-  const moves = game.moves({ verbose: true });
-  if (!moves.length) return null;
-
-  const move = moves[Math.floor(Math.random() * moves.length)];
-  game.move(move);
-  return move;
-};
-
-const movePairs = (sans: string[]) => {
-  const pairs: MovePair[] = [];
-  for (let i = 0; i < sans.length; i += 2) {
-    pairs.push({ n: i / 2 + 1, white: sans[i], black: sans[i + 1] });
-  }
-  return pairs;
-};
-
-const Board = () => {
+const Board = ({
+  getEngineMove = randomEngineMove,
+}: {
+  getEngineMove?: GetEngineMove;
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<Api | null>(null);
   const moveCountRef = useRef(0);
+  const gameIdRef = useRef(0);
   const [game] = useState(() => new Chess());
   const [moveHistory, setMoveHistory] = useState<MoveRecord[]>([]);
   const [viewIndex, setViewIndex] = useState(0);
@@ -108,10 +66,16 @@ const Board = () => {
   const maybePlayEngineMove = () => {
     if (game.isGameOver()) return;
 
-    setTimeout(() => {
-      const engineMove = playRandomMove(game);
-      if (engineMove) recordMove(engineMove);
-    }, 300);
+    const gameId = gameIdRef.current;
+    const delay = new Promise((resolve) =>
+      setTimeout(resolve, ENGINE_MOVE_DELAY_MS),
+    );
+    Promise.all([getEngineMove(game.fen()), delay]).then(([engineMove]) => {
+      if (gameId !== gameIdRef.current || !engineMove) return;
+
+      const move = game.move(engineMove);
+      if (move) recordMove(move);
+    });
   };
 
   const resolvePromotion = (piece: PromotionPiece) => {
@@ -165,6 +129,7 @@ const Board = () => {
 
   const restart = () => {
     game.reset();
+    gameIdRef.current += 1;
     moveCountRef.current = 0;
     setConfirmingEnd(false);
     setPendingPromotion(null);
@@ -257,6 +222,12 @@ const Board = () => {
         ? { free: false, color: "white", dests: toDests(game) }
         : { free: false, dests: new Map() },
       premovable: { enabled: canPlay },
+      drawable: {
+        autoShapes:
+          isLive && gameResult(game)?.token === "½-½"
+            ? drawKingShapes(game)
+            : [],
+      },
     });
 
     if (canPlay && position.turn() === "w") api.playPremove();
@@ -294,9 +265,10 @@ const Board = () => {
   }, [viewIndex, moveHistory.length, stepView]);
 
   const pairs = movePairs(moveHistory.map((m) => m.san));
-  const isCheckmate = game.isCheckmate();
+  const isGameOver = game.isGameOver();
+  const result = gameResult(game);
   const showEndButton =
-    isCheckmate || moveHistory.length >= MOVES_BEFORE_END_BUTTON;
+    isGameOver || moveHistory.length >= MOVES_BEFORE_END_BUTTON;
 
   return (
     <div className="flex w-full flex-wrap items-start justify-center gap-6 px-4">
@@ -318,10 +290,11 @@ const Board = () => {
           pairs={pairs}
           moveCount={moveHistory.length}
           viewIndex={viewIndex}
+          result={result}
           onSelectPly={setViewIndex}
         />
         {showEndButton &&
-          (isCheckmate ? (
+          (isGameOver ? (
             <button
               type="button"
               onClick={restart}
