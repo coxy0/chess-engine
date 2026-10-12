@@ -3,13 +3,12 @@
 import { useEffect, useRef } from "react";
 import type { GameResult, MovePair } from "./types";
 
-function moveClass(ply: number, viewIndex: number) {
-  return ply === viewIndex
+const moveClass = (ply: number, viewIndex: number) =>
+  ply === viewIndex
     ? "bg-black/10 dark:bg-white/10"
     : "hover:bg-black/5 dark:hover:bg-white/5";
-}
 
-function MoveButton({
+const MoveButton = ({
   ply,
   san,
   viewIndex,
@@ -19,21 +18,19 @@ function MoveButton({
   san: string | undefined;
   viewIndex: number;
   onSelect: (ply: number) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => san && onSelect(ply)}
-      data-ply={ply}
-      disabled={!san}
-      className={`w-full cursor-pointer px-2 py-1 text-left outline-none ${san ? moveClass(ply, viewIndex) : ""}`}
-    >
-      {san ?? ""}
-    </button>
-  );
-}
+}) => (
+  <button
+    type="button"
+    onClick={() => onSelect(ply)}
+    data-ply={ply}
+    disabled={!san}
+    className={`w-full cursor-pointer px-2 py-1 text-left outline-none ${san ? moveClass(ply, viewIndex) : ""}`}
+  >
+    {san ?? ""}
+  </button>
+);
 
-export default function MoveList({
+const MoveList = ({
   pairs,
   moveCount,
   viewIndex,
@@ -45,7 +42,7 @@ export default function MoveList({
   viewIndex: number;
   result: GameResult | null;
   onSelectPly: (ply: number) => void;
-}) {
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -77,7 +74,6 @@ export default function MoveList({
       ) : (
         pairs.map((pair) => {
           const whitePly = (pair.n - 1) * 2 + 1;
-          const blackPly = (pair.n - 1) * 2 + 2;
           return (
             <div
               key={pair.n}
@@ -93,7 +89,7 @@ export default function MoveList({
                 onSelect={onSelectPly}
               />
               <MoveButton
-                ply={blackPly}
+                ply={whitePly + 1}
                 san={pair.black}
                 viewIndex={viewIndex}
                 onSelect={onSelectPly}
@@ -112,4 +108,6 @@ export default function MoveList({
       )}
     </div>
   );
-}
+};
+
+export default MoveList;

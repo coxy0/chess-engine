@@ -7,25 +7,27 @@ import type { Api } from "@lichess-org/chessground/api";
 import type { Key } from "@lichess-org/chessground/types";
 import MoveList from "./MoveList";
 import TransportControls from "./TransportControls";
-import PromotionPicker, {
-  type PendingPromotion,
-  type PromotionPiece,
-} from "./PromotionPicker";
+import GameControls from "./GameControls";
+import PromotionPicker from "./PromotionPicker";
 import { playMoveSound } from "./sounds";
 import {
   START_FEN,
   checkedColor,
   drawKingShapes,
   gameResult,
+  movableFor,
   movePairs,
   soundForMove,
-  toDests,
+  turnColor,
 } from "./lib/chess";
 import { randomEngineMove } from "./lib/engine-player";
-import type { GetEngineMove, MoveRecord } from "./types";
+import type {
+  GetEngineMove,
+  MoveRecord,
+  PendingPromotion,
+  PromotionPiece,
+} from "./types";
 
-const PLAYER_COLOR: "white" | "black" = "white";
-const MOVES_BEFORE_END_BUTTON = PLAYER_COLOR === "white" ? 1 : 2;
 const ENGINE_MOVE_DELAY_MS = 300;
 
 const Board = ({
@@ -35,6 +37,9 @@ const Board = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<Api | null>(null);
+  const userMoveRef = useRef<(orig: Key, dest: Key, premove: boolean) => void>(
+    () => {},
+  );
   const moveCountRef = useRef(0);
   const gameIdRef = useRef(0);
   const [game] = useState(() => new Chess());
@@ -43,7 +48,6 @@ const Board = ({
   const [pendingPromotion, setPendingPromotion] =
     useState<PendingPromotion | null>(null);
   const [boardEl, setBoardEl] = useState<HTMLDivElement | null>(null);
-  const [confirmingEnd, setConfirmingEnd] = useState(false);
 
   const setContainer = (el: HTMLDivElement | null) => {
     containerRef.current = el;
@@ -54,7 +58,6 @@ const Board = ({
     const fen = game.fen();
     const sound = soundForMove(move, game);
     moveCountRef.current += 1;
-    setConfirmingEnd(false);
     setMoveHistory((prev) => [
       ...prev,
       { fen, san: move.san, from: move.from as Key, to: move.to as Key, sound },
@@ -78,6 +81,29 @@ const Board = ({
     });
   };
 
+  const playPlayerMove = (move: Move) => {
+    recordMove(move);
+    maybePlayEngineMove();
+  };
+
+  const handleUserMove = (orig: Key, dest: Key, premove: boolean) => {
+    const from = orig as Square;
+    const to = dest as Square;
+    const isPromotion = game
+      .moves({ square: from, verbose: true })
+      .some((m) => m.to === to && m.promotion);
+
+    if (isPromotion && !premove) {
+      setPendingPromotion({ from: orig, to: dest, color: turnColor(game) });
+      return;
+    }
+
+    const move = game.move(
+      isPromotion ? { from, to, promotion: "q" } : { from, to },
+    );
+    if (move) playPlayerMove(move);
+  };
+
   const resolvePromotion = (piece: PromotionPiece) => {
     if (!pendingPromotion) return;
 
@@ -87,33 +113,17 @@ const Board = ({
       promotion: piece,
     });
     setPendingPromotion(null);
-    if (!move) return;
-
-    recordMove(move);
-    maybePlayEngineMove();
+    if (move) playPlayerMove(move);
   };
 
   const cancelPromotion = () => {
     setPendingPromotion(null);
     apiRef.current?.set({
       fen: game.fen(),
-      turnColor: game.turn() === "w" ? "white" : "black",
+      turnColor: turnColor(game),
       check: checkedColor(game),
-      movable: { free: false, color: "white", dests: toDests(game) },
+      movable: movableFor(game, true),
     });
-  };
-
-  const startResign = () => {
-    setConfirmingEnd(true);
-  };
-
-  const confirmResign = () => {
-    setConfirmingEnd(false);
-    restart();
-  };
-
-  const cancelResign = () => {
-    setConfirmingEnd(false);
   };
 
   const stepView = useCallback(
@@ -127,23 +137,19 @@ const Board = ({
     [viewIndex, moveHistory],
   );
 
+  // The board's sync effect below re-applies the starting position.
   const restart = () => {
     game.reset();
     gameIdRef.current += 1;
     moveCountRef.current = 0;
-    setConfirmingEnd(false);
     setPendingPromotion(null);
     setMoveHistory([]);
     setViewIndex(0);
-    apiRef.current?.set({
-      fen: START_FEN,
-      lastMove: undefined,
-      turnColor: "white",
-      check: false,
-      viewOnly: false,
-      movable: { free: false, color: "white", dests: toDests(game) },
-    });
   };
+
+  useEffect(() => {
+    userMoveRef.current = handleUserMove;
+  });
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -156,34 +162,10 @@ const Board = ({
         showDests: true,
       },
       movable: {
-        free: false,
-        color: "white",
-        dests: toDests(game),
+        ...movableFor(game, true),
         events: {
-          after: (orig, dest, metadata) => {
-            const from = orig as Square;
-            const to = dest as Square;
-            const isPromotion = game
-              .moves({ square: from, verbose: true })
-              .some((m) => m.to === to && m.promotion);
-
-            if (isPromotion && !metadata.premove) {
-              setPendingPromotion({
-                from: orig as Key,
-                to: dest as Key,
-                color: game.turn() === "w" ? "white" : "black",
-              });
-              return;
-            }
-
-            const move = game.move(
-              isPromotion ? { from, to, promotion: "q" } : { from, to },
-            );
-            if (!move) return;
-
-            recordMove(move);
-            maybePlayEngineMove();
-          },
+          after: (orig, dest, metadata) =>
+            userMoveRef.current(orig, dest, metadata.premove),
         },
       },
     });
@@ -197,9 +179,6 @@ const Board = ({
       resizeObserver.disconnect();
       api.destroy();
     };
-    // recordMove/maybePlayEngineMove intentionally captured once at mount;
-    // they close over stable setters and the single `game` instance.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game]);
 
   useEffect(() => {
@@ -215,18 +194,14 @@ const Board = ({
     api.set({
       fen,
       lastMove: record ? [record.from, record.to] : undefined,
-      turnColor: position.turn() === "w" ? "white" : "black",
+      turnColor: turnColor(position),
       check: checkedColor(position),
       viewOnly: !isLive,
-      movable: canPlay
-        ? { free: false, color: "white", dests: toDests(game) }
-        : { free: false, dests: new Map() },
+      movable: movableFor(game, canPlay),
       premovable: { enabled: canPlay },
       drawable: {
         autoShapes:
-          isLive && gameResult(game)?.token === "½-½"
-            ? drawKingShapes(game)
-            : [],
+          isLive && gameResult(game)?.draw ? drawKingShapes(game) : [],
       },
     });
 
@@ -237,18 +212,8 @@ const Board = ({
     const api = apiRef.current;
     if (!api || !pendingPromotion) return;
 
-    api.set({ movable: { free: false, dests: new Map() } });
-  }, [pendingPromotion]);
-
-  useEffect(() => {
-    if (!pendingPromotion) return;
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") cancelPromotion();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [pendingPromotion]); // eslint-disable-line react-hooks/exhaustive-deps
+    api.set({ movable: movableFor(game, false) });
+  }, [pendingPromotion, game]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -267,13 +232,11 @@ const Board = ({
   const pairs = movePairs(moveHistory.map((m) => m.san));
   const isGameOver = game.isGameOver();
   const result = gameResult(game);
-  const showEndButton =
-    isGameOver || moveHistory.length >= MOVES_BEFORE_END_BUTTON;
 
   return (
-    <div className="flex w-full flex-wrap items-start justify-center gap-6 px-4">
+    <div className="flex w-full flex-wrap items-start justify-center gap-6 px-4 md:flex-nowrap md:[--list-w:clamp(16rem,28vw,24rem)] md:[--board:min(44rem,calc(100vw-var(--list-w)-3.5rem))]">
       <div
-        className="aspect-square w-full max-w-160 shrink-0"
+        className="aspect-square w-full max-w-160 shrink-0 md:w-(--board) md:max-w-none"
         ref={setContainer}
       >
         {pendingPromotion && boardEl && (
@@ -285,7 +248,7 @@ const Board = ({
           />
         )}
       </div>
-      <div className="flex h-72 w-full max-w-160 flex-col rounded-md border border-black/10 bg-black/3 sm:h-160 sm:w-80 sm:max-w-none dark:border-white/10 dark:bg-white/3">
+      <div className="flex h-72 w-full max-w-160 flex-col rounded-md border border-black/10 bg-black/3 md:h-(--board) md:w-(--list-w) dark:border-white/10 dark:bg-white/3">
         <MoveList
           pairs={pairs}
           moveCount={moveHistory.length}
@@ -293,74 +256,16 @@ const Board = ({
           result={result}
           onSelectPly={setViewIndex}
         />
-        {showEndButton &&
-          (isGameOver ? (
-            <button
-              type="button"
-              onClick={restart}
-              className="cursor-pointer border-t border-black/10 py-2 text-sm font-medium text-black/70 hover:bg-black/5 dark:border-white/10 dark:text-white/70 dark:hover:bg-white/5"
-            >
-              Restart
-            </button>
-          ) : confirmingEnd ? (
-            <div className="grid grid-cols-4 items-center gap-1 border-t border-black/10 px-8 py-2 dark:border-white/10">
-              <span className="col-span-2 flex items-center pl-[calc(25%-9px)] text-sm font-medium text-red-600 dark:text-red-400">
-                Are you sure?
-              </span>
-              <button
-                type="button"
-                aria-label="Confirm resign"
-                title="Confirm resign"
-                onClick={confirmResign}
-                className="mr-[calc(9.5px-37.5%)] flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center justify-self-end rounded-sm text-green-600 hover:bg-black/10 dark:text-green-400 dark:hover:bg-white/10"
-              >
-                <svg
-                  aria-hidden
-                  viewBox="0 0 24 24"
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                aria-label="Cancel resign"
-                title="Cancel resign"
-                onClick={cancelResign}
-                className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center justify-self-center rounded-sm text-red-600 hover:bg-black/10 dark:text-red-400 dark:hover:bg-white/10"
-              >
-                <svg
-                  aria-hidden
-                  viewBox="0 0 24 24"
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={startResign}
-              className="cursor-pointer border-t border-black/10 py-2 text-sm font-medium text-black/70 hover:bg-black/5 dark:border-white/10 dark:text-white/70 dark:hover:bg-white/5"
-            >
-              Resign
-            </button>
-          ))}
+        <GameControls
+          key={moveHistory.length}
+          moveCount={moveHistory.length}
+          isGameOver={isGameOver}
+          onRestart={restart}
+        />
         <TransportControls
           viewIndex={viewIndex}
           moveCount={moveHistory.length}
-          onChange={setViewIndex}
+          onJump={setViewIndex}
           onStep={stepView}
         />
       </div>
