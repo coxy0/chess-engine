@@ -1,9 +1,14 @@
 import { Chess, type Move } from "chess.js";
 import type { Key } from "@lichess-org/chessground/types";
+import type { Config } from "@lichess-org/chessground/config";
 import type { DrawShape } from "@lichess-org/chessground/draw";
-import type { GameResult, MovePair } from "../types";
+import type { Color, GameResult, MovePair } from "../types";
 
 export const START_FEN = new Chess().fen();
+export const PLAYER_COLOR: Color = "white";
+
+export const turnColor = (chess: Chess): Color =>
+  chess.turn() === "w" ? "white" : "black";
 
 export const toDests = (chess: Chess) => {
   const dests = new Map<Key, Key[]>();
@@ -22,16 +27,24 @@ export const toDests = (chess: Chess) => {
   return dests;
 };
 
-export const checkedColor = (chess: Chess) => {
-  if (!chess.inCheck()) return false;
-  return chess.turn() === "w" ? "white" : "black";
-};
+export const movableFor = (
+  chess: Chess,
+  canPlay: boolean,
+): Config["movable"] =>
+  canPlay
+    ? { free: false, color: PLAYER_COLOR, dests: toDests(chess) }
+    : { free: false, dests: new Map() };
+
+export const checkedColor = (chess: Chess) =>
+  chess.inCheck() ? turnColor(chess) : false;
 
 export const gameResult = (chess: Chess): GameResult | null => {
   if (chess.isCheckmate()) {
-    return chess.turn() === "w"
-      ? { token: "0-1", reason: "Checkmate" }
-      : { token: "1-0", reason: "Checkmate" };
+    return {
+      token: chess.turn() === "w" ? "0-1" : "1-0",
+      reason: "Checkmate",
+      draw: false,
+    };
   }
   if (!chess.isGameOver()) return null;
 
@@ -42,21 +55,26 @@ export const gameResult = (chess: Chess): GameResult | null => {
       : chess.isThreefoldRepetition()
         ? "Threefold repetition"
         : "Fifty-move rule";
-  return { token: "½-½", reason };
+  return { token: "½-½", reason, draw: true };
 };
 
 export const drawKingShapes = (chess: Chess): DrawShape[] =>
   chess
     .board()
     .flat()
-    .filter((sq) => sq?.type === "k")
-    .map((sq) => ({
-      orig: sq!.square as Key,
-      below: true,
-      customSvg: {
-        html: `<defs><radialGradient id="draw-${sq!.square}" gradientUnits="userSpaceOnUse" cx="50" cy="50" r="70.7"><stop offset="0" stop-color="rgb(140,140,140)"/><stop offset="0.25" stop-color="rgb(140,140,140)"/><stop offset="0.89" stop-color="rgb(140,140,140)" stop-opacity="0"/></radialGradient></defs><rect width="100" height="100" fill="url(#draw-${sq!.square})"/>`,
-      },
-    }));
+    .flatMap((sq) =>
+      sq?.type === "k"
+        ? [
+            {
+              orig: sq.square as Key,
+              below: true,
+              customSvg: {
+                html: `<defs><radialGradient id="draw-${sq.square}" gradientUnits="userSpaceOnUse" cx="50" cy="50" r="70.7"><stop offset="0" stop-color="rgb(140,140,140)"/><stop offset="0.25" stop-color="rgb(140,140,140)"/><stop offset="0.89" stop-color="rgb(140,140,140)" stop-opacity="0"/></radialGradient></defs><rect width="100" height="100" fill="url(#draw-${sq.square})"/>`,
+              },
+            },
+          ]
+        : [],
+    );
 
 export const soundForMove = (move: Move, gameAfterMove: Chess) => {
   if (gameAfterMove.isCheckmate()) return "checkmate" as const;
