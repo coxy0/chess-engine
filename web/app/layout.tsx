@@ -4,6 +4,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "chess-engine",
   description: "A chess engine",
+  // Empty icon so browsers don't request /favicon.ico (404) until we add one.
+  icons: { icon: "data:," },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
